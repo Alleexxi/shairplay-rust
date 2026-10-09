@@ -157,10 +157,11 @@ pub(crate) fn receiver_features_for_pairing(requires_pin_pairing: bool) -> u64 {
     // Verified with iOS 18 + shairport-sync reference.
     // Each bit is annotated with its position for easy cross-referencing
     // with https://emanuelecozzi.net/docs/airplay2/features/
-    // When video is enabled, use UxPlay's proven feature set (0x527FFEE6).
+    // When video is enabled, start with UxPlay's proven legacy feature set
+    // (0x527FFEE6) and advertise ScreenMultiCodec for HEVC-capable clients.
     // Bit 27 (legacy pairing) must be OFF — otherwise the iPhone does
     // pair-setup/verify and the ECDH hash corrupts the FairPlay key.
-    // No AP2 bits (40, 41, 46, 48) — pure legacy protocol for video.
+    // No AP2 audio/pairing bits (40, 41, 46, 48) — legacy video protocol.
     #[cfg(feature = "video")]
     {
         let _ = requires_pin_pairing;
@@ -183,6 +184,7 @@ pub(crate) fn receiver_features_for_pairing(requires_pin_pairing: bool) -> u64 {
             AudioFormats3,                     // bit 21
             AudioFormats4,                     // bit 22
             HasUnifiedAdvertiserInfo,          // bit 30
+            SupportsScreenMultiCodec,          // bit 42
         ]);
         // Bits 10/12/13/25/28 have no public AirPlay-spec names — UxPlay sets them
         // empirically for legacy screen-mirroring compat. Kept as raw shifts
@@ -277,7 +279,7 @@ mod tests {
 
     #[test]
     #[cfg(feature = "video")]
-    fn video_receiver_uses_uxplay_features() {
-        assert_eq!(receiver_features(), 0x527FFEE6);
+    fn video_receiver_advertises_screen_multicodec() {
+        assert_eq!(receiver_features(), 0x0000_0400_527F_FEE6);
     }
 }

@@ -168,7 +168,7 @@ limits and requirements for conformant receiver authentication.
 | `dangerous-raw-headers` | (implies `diagnostic-headers`) | Raw header values for explicit use in debug-assertion builds |
 | `resample` | rubato | Sample rate conversion + channel mixdown |
 | `ap2` | chacha20poly1305, hkdf, symphonia, … (implies `resample`) | Full AirPlay 2 audio |
-| `video` | (implies `ap2`) | Legacy feature set for screen mirroring (`0x527FFEE6`) |
+| `video` | (implies `ap2`) | Legacy screen-mirroring feature set plus ScreenMultiCodec (HEVC capability) |
 | `hls` | (implies `video`) | HLS video playback (YouTube, etc.) — receiver relays URL to app |
 
 ### Experimental PipeWire Probe Compatibility
@@ -248,11 +248,11 @@ Connections are **instant** (starts streaming in under 50ms) using deterministic
 Behind the `video` feature gate. Screen mirroring uses the legacy/UxPlay-compatible
 feature set; AP2 buffered audio is intentionally disabled while video is enabled.
 
-The video feature switches to a UxPlay-compatible legacy feature set
-(`0x527FFEE6`) to receive screen mirroring data from iOS 18+. AP2
-buffered audio is not available — the iPhone falls back to legacy ALAC
-(type 96) which is fully supported with FairPlay key decryption and
-NTP timing.
+The video feature uses a UxPlay-compatible legacy feature set
+(`0x527FFEE6`) plus ScreenMultiCodec (bit 42) to advertise HEVC capability.
+AP2 buffered audio is not available — the iPhone falls back to legacy ALAC
+(type 96) which is fully supported with FairPlay key decryption and NTP timing.
+The example player still only decodes H.264; H.265 decoding is not implemented.
 
 Video decryption is implemented for the legacy feature-set path; AP2+video
 hybrid operation remains research work. See [AP2-STATUS.md](AP2-STATUS.md)

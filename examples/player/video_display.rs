@@ -5,6 +5,7 @@ use openh264::decoder::Decoder;
 use openh264::formats::YUVSource;
 use shairplay::{PacketKind, VideoHandler, VideoPacket, VideoSession};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 /// Shared frame buffer between the video session (producer) and the window loop (consumer).
 pub struct FrameBuffer {
@@ -46,6 +47,12 @@ impl VideoHandler for DisplayVideoHandler {
             decoder: Decoder::new().expect("failed to create H.264 decoder"),
             frame: self.frame.clone(),
             sps_pps: Vec::new(),
+            is_hevc: false,
+            stats_started: Instant::now(),
+            packets_this_interval: 0,
+            timestamps_this_interval: 0,
+            decoded_this_interval: 0,
+            last_payload_timestamp: None,
         })
     }
 }
@@ -56,21 +63,71 @@ struct DisplayVideoSession {
     frame: Arc<Mutex<FrameBuffer>>,
     /// Cached SPS/PPS NAL units from AvcC config.
     sps_pps: Vec<u8>,
+    /// H.265 is recognized but not decoded by this example player yet.
+    is_hevc: bool,
+    stats_started: Instant,
+    packets_this_interval: u64,
+    timestamps_this_interval: u64,
+    decoded_this_interval: u64,
+    last_payload_timestamp: Option<u64>,
+}
+
+impl DisplayVideoSession {
+    fn report_rate_if_due(&mut self) {
+        let elapsed = self.stats_started.elapsed();
+        if elapsed < Duration::from_secs(1) {
+            return;
+        }
+
+        let seconds = elapsed.as_secs_f64();
+        eprintln!(
+            "INFO AirPlay video rate packets_per_sec={:.1} frame_timestamps_per_sec={:.1} decoded_frames_per_sec={:.1}",
+            self.packets_this_interval as f64 / seconds,
+            self.timestamps_this_interval as f64 / seconds,
+            self.decoded_this_interval as f64 / seconds,
+        );
+        self.stats_started = Instant::now();
+        self.packets_this_interval = 0;
+        self.timestamps_this_interval = 0;
+        self.decoded_this_interval = 0;
+    }
 }
 
 impl VideoSession for DisplayVideoSession {
     fn on_video(&mut self, packet: VideoPacket) {
+        self.packets_this_interval += 1;
+        if packet.kind == PacketKind::Payload
+            && self.last_payload_timestamp != Some(packet.timestamp)
+        {
+            self.last_payload_timestamp = Some(packet.timestamp);
+            self.timestamps_this_interval += 1;
+        }
         match packet.kind {
             PacketKind::AvcC => {
+                self.is_hevc = false;
                 // Parse AvcC box to extract SPS/PPS NAL units
                 self.sps_pps = parse_avcc(&packet.payload);
                 if !self.sps_pps.is_empty() {
                     // Feed SPS/PPS to decoder
                     let _ = self.decoder.decode(&self.sps_pps);
-                    eprintln!("📺 H.264 config received ({} bytes)", self.sps_pps.len());
+                    eprintln!(
+                        "INFO AirPlay H.264 config received bytes={}",
+                        self.sps_pps.len()
+                    );
                 }
             }
+            PacketKind::HvcC => {
+                self.is_hevc = true;
+                eprintln!(
+                    "INFO AirPlay H.265 config received bytes={}; decoder unavailable",
+                    packet.payload.len()
+                );
+            }
             PacketKind::Payload => {
+                if self.is_hevc {
+                    self.report_rate_if_due();
+                    return;
+                }
                 // Payload contains length-prefixed NAL units (4-byte big-endian length + NAL data)
                 let annexb = length_to_annexb(&packet.payload);
                 if annexb.is_empty() {
@@ -89,6 +146,7 @@ impl VideoSession for DisplayVideoSession {
 
                 match self.decoder.decode(&decode_buf) {
                     Ok(Some(yuv)) => {
+                        self.decoded_this_interval += 1;
                         let (w, h) = yuv.dimensions();
                         let buf_size = w * h * 3;
                         let mut rgb = vec![0u8; buf_size];
@@ -116,11 +174,12 @@ impl VideoSession for DisplayVideoSession {
                         fb.dirty = true;
                     }
                     Ok(None) => {} // buffering
-                    Err(e) => eprintln!("📺 H.264 decode error: {e}"),
+                    Err(e) => eprintln!("INFO Decoded H.264 error: {e}"),
                 }
             }
             _ => {}
         }
+        self.report_rate_if_due();
     }
 }
 
@@ -199,6 +258,8 @@ pub fn run_window(frame: Arc<Mutex<FrameBuffer>>) {
     let mut window: Option<Window> = None;
     let mut win_w = 0usize;
     let mut win_h = 0usize;
+    let mut presentation_started = Instant::now();
+    let mut presented_this_interval = 0u64;
 
     loop {
         let (pixels, w, h) = {
@@ -240,6 +301,16 @@ pub fn run_window(frame: Arc<Mutex<FrameBuffer>>) {
                 break;
             }
             let _ = win.update_with_buffer(&pixels, w, h);
+            presented_this_interval += 1;
+            let elapsed = presentation_started.elapsed();
+            if elapsed >= Duration::from_secs(1) {
+                eprintln!(
+                    "INFO Decoded video_presentations_per_sec={:.1}",
+                    presented_this_interval as f64 / elapsed.as_secs_f64()
+                );
+                presentation_started = Instant::now();
+                presented_this_interval = 0;
+            }
         }
     }
 }

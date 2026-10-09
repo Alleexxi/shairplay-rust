@@ -515,8 +515,8 @@ mod tests {
                 .map(|(_, v)| v.as_str())
         };
 
-        assert_eq!(raop("ft"), Some("0x527FFEE6,0x0"));
-        assert_eq!(airplay("features"), Some("0x527FFEE6,0x0"));
+        assert_eq!(raop("ft"), Some("0x527FFEE6,0x400"));
+        assert_eq!(airplay("features"), Some("0x527FFEE6,0x400"));
         assert_eq!(raop("sf"), Some("0x204"));
         assert_eq!(airplay("flags"), Some("0x204"));
     }

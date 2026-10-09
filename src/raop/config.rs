@@ -182,9 +182,13 @@ pub(crate) const MIRRORING_WIDTH: i64 = 1920;
 #[cfg(feature = "video")]
 pub(crate) const MIRRORING_HEIGHT: i64 = 1080;
 
-/// Frame rate advertised for the virtual display target.
+/// Maximum frame rate advertised for the virtual display target.
 #[cfg(feature = "video")]
-pub(crate) const MIRRORING_FPS: i64 = 60;
+pub(crate) const MIRRORING_FPS: i64 = 10;
+
+/// Display refresh rate advertised to the AirPlay client.
+#[cfg(feature = "video")]
+pub(crate) const MIRRORING_REFRESH_RATE: i64 = 120;
 
 /// Static UUID tag for the virtual display target.
 #[cfg(feature = "video")]

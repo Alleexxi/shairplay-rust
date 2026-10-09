@@ -265,6 +265,10 @@ pub(crate) fn handle_info(
                 plist::Value::Integer(config::MIRRORING_FPS.into()),
             ),
             (
+                "refreshRate".to_string(),
+                plist::Value::Integer(config::MIRRORING_REFRESH_RATE.into()),
+            ),
+            (
                 "features".to_string(),
                 plist::Value::Integer(config::MIRRORING_FEATURES.into()),
             ),

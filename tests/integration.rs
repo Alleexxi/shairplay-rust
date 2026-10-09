@@ -654,7 +654,7 @@ mod ap2_tests {
         };
 
         let expected_features = if cfg!(feature = "video") {
-            "0x527FFEE6,0x0"
+            "0x527FFEE6,0x400"
         } else {
             "0x405D4A00,0x14340"
         };
